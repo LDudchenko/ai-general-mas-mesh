@@ -1,17 +1,17 @@
 {
   "routes": {},
   "applications": {
-   "gpt-4o": {
-     "displayName": "GPT 4o",
-     "endpoint": "http://adapter-dial:5000/openai/deployments/gpt-4o/chat/completions",
-     "iconUrl": "http://localhost:3001/gpt4.svg",
-     "type": "chat",
-     "upstreams": [
-       {
-         "endpoint": "https://api.openai.com/v1/chat/completions",
-         "key": "${OPENAI_API_KEY}"
-       }
-     ]
+   "calculations-agent": {
+     "displayName": "Calculations Agent",
+     "description": "Calculations Agent. Primary goal to to work with calculations. Capable to make plotly graphics and chart bars. Equipped with: Python Code Interpreter (via MCP), and Simple calculator.",
+     "endpoint": "http://host.docker.internal:5001/openai/deployments/calculations-agent/chat/completions",
+     "inputAttachmentTypes": [
+       "application/pdf",
+       "text/html",
+       "text/plain",
+       "text/csv"
+     ],
+     "forwardAuthToken": true
    },
    "content-management-agent": {
      "displayName": "Content Management Agent",
