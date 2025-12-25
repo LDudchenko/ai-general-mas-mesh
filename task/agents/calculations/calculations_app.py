@@ -8,27 +8,31 @@ from task.agents.calculations.tools.simple_calculator_tool import SimpleCalculat
 from task.agents.calculations.tools.py_interpreter.python_code_interpreter_tool import PythonCodeInterpreterTool
 from task.tools.deployment.content_management_agent_tool import ContentManagementAgentTool
 from task.tools.deployment.web_search_agent_tool import WebSearchAgentTool
+from task.tools.mcp.mcp_client import MCPClient
 from task.utils.constants import DIAL_ENDPOINT, DEPLOYMENT_NAME
 
 class CalculationsApplication(ChatCompletion):
 
     async def chat_completion(self, request: Request, response: Response) -> None:
-        choice = Choice(index=0)
-        agent = CalculationsAgent(
-            endpoint=DIAL_ENDPOINT,
-            tools=[
-                SimpleCalculatorTool(),
-                PythonCodeInterpreterTool(),
-                ContentManagementAgentTool(endpoint=DIAL_ENDPOINT),
-                WebSearchAgentTool(endpoint=DIAL_ENDPOINT),
-            ],
-        )
-        assistant_message = await agent.handle_request(
-            deployment_name=DEPLOYMENT_NAME,
-            choice=choice,
-            request=request,
-            response=response,
-        )
+        with response.create_single_choice() as choice:
+            mcp_client = await MCPClient.create("http://localhost:8050/mcp")
+            mcp_tools = await mcp_client.get_tools()
+            agent = CalculationsAgent(
+                endpoint=DIAL_ENDPOINT,
+                tools=[
+                    SimpleCalculatorTool(),
+                    PythonCodeInterpreterTool(dial_endpoint=DIAL_ENDPOINT, tool_name="python_code_interpreter_tool",
+                                              mcp_client=mcp_client, mcp_tool_models=mcp_tools),
+                    ContentManagementAgentTool(endpoint=DIAL_ENDPOINT),
+                    WebSearchAgentTool(endpoint=DIAL_ENDPOINT),
+                ],
+            )
+            assistant_message = await agent.handle_request(
+                deployment_name=DEPLOYMENT_NAME,
+                choice=choice,
+                request=request,
+                response=response,
+            )
 
 
 if __name__ == "__main__":

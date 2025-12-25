@@ -24,67 +24,49 @@ class BaseAgentTool(BaseTool, ABC):
 
     async def _execute(self, tool_call_params: ToolCallParams) -> str | Message:
         client = AsyncDial(api_version='2025-01-01-preview', endpoint=self.endpoint, api_key=tool_call_params.api_key)
+        print(f"Endpoint: {self.endpoint}")
         messages = self._prepare_messages(tool_call_params)
-        client.chat.completions.create(messages=messages, deployment_name=tool_call_params.tool_call.function.name, stream=True,
+        chunks = client.chat.completions.create(messages=messages, deployment_name=self.deployment_name,
+                                       stream=True,
                                        extra_headers={"x-conversation-id": tool_call_params.conversation_id})
-        content=""
+        content = ""
         custom_content: CustomContent = CustomContent()
         stages_map: dict[int, Stage] = {}
 
-        async def _execute(self, tool_call_params: ToolCallParams) -> str | Message:
-            client = AsyncDial(
-                api_version="2025-01-01-preview",
-                endpoint=self.endpoint,
-                api_key=tool_call_params.api_key,
-            )
+        async for chunk in chunks:
+            delta = chunk.choices[0].delta
+            if delta.content:
+                content += delta.content
+                tool_call_params.stage.append_content(delta.content)
+            if delta.custom_content:
+                if delta.custom_content.attachments:
+                    custom_content.attachments.extend(delta.custom_content.attachments)
+                if delta.custom_content.state:
+                    custom_content.state = delta.custom_content.state
 
-            messages = self._prepare_messages(tool_call_params)
+                custom_content_dict = delta.custom_content.dict(exclude_none=True)
+                if "stages" in custom_content_dict:
+                    for stg in custom_content_dict["stages"]:
+                        idx = stg["index"]
+                        if idx in stages_map:
+                            mapped_stage = stages_map[idx]
+                            if stg.get("content"):
+                                mapped_stage.append_content(stg["content"])
+                            if stg.get("attachments"):
+                                for att in stg["attachments"]:
+                                    mapped_stage.add_attachment(Attachment(**att))
+                            if stg.get("status") == "completed":
+                                StageProcessor.close_stage_safely(mapped_stage)
+                        else:
+                            mapped_stage = StageProcessor.open_stage(tool_call_params.choice, name=stg.get("name"))
+                            stages_map[idx] = mapped_stage
 
-            content = ""
-            custom_content = CustomContent(attachments=[], state={})
-            stages_map: dict[int, Stage] = {}
+        for stage in stages_map.values():
+            StageProcessor.close_stage_safely(stage)
 
-            chunks = await client.chat.completions.create(
-                deployment_name=tool_call_params.tool_call.function.name,
-                messages=messages,
-                stream=True,
-                extra_headers={
-                    "x-conversation-id": tool_call_params.conversation_id
-                },
-            )
+        return Message(role=Role.TOOL, tool_call_id=tool_call_params.tool_call.id, content=StrictStr(content),
+                       custom_content=custom_content)
 
-            async for chunk in chunks:
-                delta = chunk.choices[0].delta
-                if delta.content:
-                    content += delta.content
-                    tool_call_params.stage.append_content(delta.content)
-                if delta.custom_content:
-                    if delta.custom_content.attachments:
-                        custom_content.attachments.extend(delta.custom_content.attachments)
-                    if delta.custom_content.state:
-                        custom_content.state = delta.custom_content.state
-
-                    custom_content_dict = delta.custom_content.dict(exclude_none=True)
-                    if "stages" in custom_content_dict:
-                        for stg in custom_content_dict["stages"]:
-                            idx = stg["index"]
-                            if idx in stages_map:
-                                mapped_stage = stages_map[idx]
-                                if stg.get("content"):
-                                    mapped_stage.append_content(stg["content"])
-                                if stg.get("attachments"):
-                                    for att in stg["attachments"]:
-                                        mapped_stage.add_attachment(Attachment(**att))
-                                if stg.get("status") == "completed":
-                                    StageProcessor.close_stage_safely(mapped_stage)
-                            else:
-                                mapped_stage = StageProcessor.open_stage(tool_call_params.choice,name=stg.get("name"))
-                                stages_map[idx] = mapped_stage
-
-            for stage in stages_map.values():
-                StageProcessor.close_stage_safely(stage)
-
-            return Message(role=Role.TOOL, tool_call_id=tool_call_params.tool_call.id, content=content,custom_content=custom_content)
 
     def _prepare_messages(self, tool_call_params: ToolCallParams) -> list[dict[str, Any]]:
         args = json.loads(tool_call_params.tool_call.function.arguments)
@@ -97,8 +79,9 @@ class BaseAgentTool(BaseTool, ABC):
             for idx in range(len(request_messages)):
                 msg = request_messages[idx]
 
-                if (msg.role == Role.ASSISTANT and msg.custom_content and msg.custom_content.state and self.name in msg.custom_content.state):
-                    last_user_message=request_messages[idx - 1]
+                if (
+                        msg.role == Role.ASSISTANT and msg.custom_content and msg.custom_content.state and self.name in msg.custom_content.state):
+                    last_user_message = request_messages[idx - 1]
                     messages.append(last_user_message.dict(exclude_none=True))
 
                     assistant_message = deepcopy(msg)

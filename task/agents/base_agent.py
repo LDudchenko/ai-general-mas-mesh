@@ -44,6 +44,7 @@ class BaseAgent:
             api_version='2025-01-01-preview'
         )
 
+
         chunks = await client.chat.completions.create(
             messages=self._prepare_messages(request.messages),
             tools=[tool.schema for tool in self.tools],

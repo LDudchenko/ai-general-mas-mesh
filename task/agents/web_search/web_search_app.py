@@ -15,25 +15,21 @@ _DDG_MCP_URL = "http://localhost:8051/mcp"
 class WebSearchApplication(ChatCompletion):
 
     async def chat_completion(self, request: Request, response: Response) -> None:
-        choice = Choice(index=0)
-        # Ініціалізація MCP та інструментів MAS Mesh
-        mcp_client = MCPClient(_DDG_MCP_URL)
-        mcp_tool = MCPTool(mcp_client)
-        calculations_tool = CalculationsAgentTool(endpoint=DIAL_ENDPOINT)
-        content_management_tool = ContentManagementAgentTool(endpoint=DIAL_ENDPOINT)
-
-        agent = WebSearchAgent(
-            endpoint=DIAL_ENDPOINT,
-            tools=[mcp_tool, calculations_tool, content_management_tool],
-        )
-
-        # Делегуємо обробку запиту агенту
-        await agent.handle_request(
-            deployment_name="web-search-agent",
-            choice=choice,
-            request=request,
-            response=response,
-        )
+        with response.create_single_choice() as choice:
+            mcp_client = await MCPClient.create(_DDG_MCP_URL)
+            mcp_tool = await mcp_client.get_tools()
+            calculations_tool = CalculationsAgentTool(endpoint=DIAL_ENDPOINT)
+            content_management_tool = ContentManagementAgentTool(endpoint=DIAL_ENDPOINT)
+            agent = WebSearchAgent(
+                endpoint=DIAL_ENDPOINT,
+                tools=[mcp_tool, calculations_tool, content_management_tool],
+            )
+            await agent.handle_request(
+                deployment_name="web-search-agent",
+                choice=choice,
+                request=request,
+                response=response,
+            )
 
 
 if __name__ == "__main__":
