@@ -14,6 +14,7 @@ from task.utils.constants import DIAL_ENDPOINT, DEPLOYMENT_NAME
 class CalculationsApplication(ChatCompletion):
 
     async def chat_completion(self, request: Request, response: Response) -> None:
+        print(f"Endpoint: {request}")
         with response.create_single_choice() as choice:
             mcp_client = await MCPClient.create("http://localhost:8050/mcp")
             mcp_tools = await mcp_client.get_tools()
