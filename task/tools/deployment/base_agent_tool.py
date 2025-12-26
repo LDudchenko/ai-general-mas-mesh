@@ -25,7 +25,6 @@ class BaseAgentTool(BaseTool, ABC):
     async def _execute(self, tool_call_params: ToolCallParams) -> str | Message:
         print(f"Endpoint: {self.endpoint}")
         client = AsyncDial(api_version='2025-01-01-preview', base_url=self.endpoint, api_key=tool_call_params.api_key)
-        print(f"Endpoint: {self.endpoint}")
         messages = self._prepare_messages(tool_call_params)
         chunks = await client.chat.completions.create(messages=messages, deployment_name=self.deployment_name,
                                        stream=True,

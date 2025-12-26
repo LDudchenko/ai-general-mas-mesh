@@ -12,19 +12,21 @@ from task.utils.constants import DIAL_ENDPOINT, DEPLOYMENT_NAME
 
 
 class ContentManagementApplication(ChatCompletion):
+    def __init__(self):
+        self.tools = [
+                FileContentExtractionTool(endpoint=DIAL_ENDPOINT),
+                RagTool(endpoint=DIAL_ENDPOINT, document_cache=DocumentCache(), deployment_name=DEPLOYMENT_NAME),
+                CalculationsAgentTool(endpoint=DIAL_ENDPOINT),
+                WebSearchAgentTool(endpoint=DIAL_ENDPOINT),
+            ]
 
     async def chat_completion(self, request: Request, response: Response) -> None:
         with response.create_single_choice() as choice:
             agent = ContentManagementAgent(
                 endpoint=DIAL_ENDPOINT,
-                tools=[
-                    FileContentExtractionTool(endpoint=DIAL_ENDPOINT),
-                    RagTool(endpoint=DIAL_ENDPOINT, document_cache=DocumentCache(), deployment_name=DEPLOYMENT_NAME),
-                    CalculationsAgentTool(endpoint=DIAL_ENDPOINT),
-                    WebSearchAgentTool(endpoint=DIAL_ENDPOINT),
-                ],
+                tools=self.tools,
             )
-            assistant_message = await agent.handle_request(
+            await agent.handle_request(
                 deployment_name=DEPLOYMENT_NAME,
                 choice=choice,
                 request=request,
