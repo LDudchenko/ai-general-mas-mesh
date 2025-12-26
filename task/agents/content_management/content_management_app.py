@@ -25,7 +25,7 @@ class ContentManagementApplication(ChatCompletion):
                 ],
             )
             assistant_message = await agent.handle_request(
-                deployment_name="content-management-agent",
+                deployment_name=DEPLOYMENT_NAME,
                 choice=choice,
                 request=request,
                 response=response,
@@ -34,10 +34,9 @@ class ContentManagementApplication(ChatCompletion):
 
 
 if __name__ == "__main__":
-    app = DIALApp(
-        deployment_name="content-management-agent",
-        impl=ContentManagementApplication(),
-    )
+    app: DIALApp = DIALApp()
+    agent_app = ContentManagementApplication()
+    app.add_chat_completion(deployment_name="content-management-agent", impl=agent_app)
 
     uvicorn.run(
         app,

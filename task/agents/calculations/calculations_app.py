@@ -16,16 +16,15 @@ class CalculationsApplication(ChatCompletion):
     async def chat_completion(self, request: Request, response: Response) -> None:
         print(f"Endpoint: {request}")
         with response.create_single_choice() as choice:
-            mcp_client = await MCPClient.create("http://localhost:8050/mcp")
-            mcp_tools = await mcp_client.get_tools()
+            mcp_url="http://localhost:8050/mcp"
+            python_interpreter_tool: PythonCodeInterpreterTool = await PythonCodeInterpreterTool.create(dial_endpoint=DIAL_ENDPOINT, tool_name="execute_code", mcp_url=mcp_url)
             agent = CalculationsAgent(
                 endpoint=DIAL_ENDPOINT,
                 tools=[
                     SimpleCalculatorTool(),
-                    PythonCodeInterpreterTool(dial_endpoint=DIAL_ENDPOINT, tool_name="python_code_interpreter_tool",
-                                              mcp_client=mcp_client, mcp_tool_models=mcp_tools),
                     ContentManagementAgentTool(endpoint=DIAL_ENDPOINT),
                     WebSearchAgentTool(endpoint=DIAL_ENDPOINT),
+                    python_interpreter_tool
                 ],
             )
             assistant_message = await agent.handle_request(
@@ -37,10 +36,9 @@ class CalculationsApplication(ChatCompletion):
 
 
 if __name__ == "__main__":
-    app = DIALApp(
-        deployment_name="calculations-agent",
-        impl=CalculationsApplication(),
-    )
+    app: DIALApp = DIALApp()
+    agent_app = CalculationsApplication()
+    app.add_chat_completion(deployment_name="calculations-agent", impl=agent_app)
 
     uvicorn.run(
         app,
