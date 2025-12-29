@@ -1,8 +1,6 @@
-import asyncio
-
 import uvicorn
 from aidial_sdk import DIALApp
-from aidial_sdk.chat_completion import ChatCompletion, Request, Response, Choice
+from aidial_sdk.chat_completion import ChatCompletion, Request, Response
 
 from task.agents.calculations.calculations_agent import CalculationsAgent
 from task.agents.calculations.tools.simple_calculator_tool import SimpleCalculatorTool
