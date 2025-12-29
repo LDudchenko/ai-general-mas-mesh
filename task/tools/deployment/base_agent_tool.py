@@ -23,14 +23,13 @@ class BaseAgentTool(BaseTool, ABC):
         pass
 
     async def _execute(self, tool_call_params: ToolCallParams) -> str | Message:
-        print(f"Endpoint: {self.endpoint}")
         client = AsyncDial(api_version='2025-01-01-preview', base_url=self.endpoint, api_key=tool_call_params.api_key)
         messages = self._prepare_messages(tool_call_params)
         chunks = await client.chat.completions.create(messages=messages, deployment_name=self.deployment_name,
                                        stream=True,
                                        extra_headers={"x-conversation-id": tool_call_params.conversation_id})
         content = ""
-        custom_content: CustomContent = CustomContent()
+        custom_content: CustomContent = CustomContent(attachments=[])
         stages_map: dict[int, Stage] = {}
 
         async for chunk in chunks:
@@ -64,6 +63,11 @@ class BaseAgentTool(BaseTool, ABC):
         for stage in stages_map.values():
             StageProcessor.close_stage_safely(stage)
 
+        for attachment in custom_content.attachments:
+            tool_call_params.choice.add_attachment(
+                Attachment(**attachment.dict(exclude_none=True))
+            )
+
         return Message(role=Role.TOOL, tool_call_id=tool_call_params.tool_call.id, content=StrictStr(content),
                        custom_content=custom_content)
 
@@ -79,8 +83,7 @@ class BaseAgentTool(BaseTool, ABC):
             for idx in range(len(request_messages)):
                 msg = request_messages[idx]
 
-                if (
-                        msg.role == Role.ASSISTANT and msg.custom_content and msg.custom_content.state and self.name in msg.custom_content.state):
+                if (msg.role == Role.ASSISTANT and msg.custom_content and msg.custom_content.state and self.name in msg.custom_content.state):
                     last_user_message = request_messages[idx - 1]
                     messages.append(last_user_message.dict(exclude_none=True))
 
@@ -88,10 +91,11 @@ class BaseAgentTool(BaseTool, ABC):
                     assistant_message.custom_content.state = msg.custom_content.state.get(self.name)
                     messages.append(assistant_message.dict(exclude_none=True))
 
+        custom_content = tool_call_params.messages[-1].custom_content
         messages.append({
             "role": Role.USER,
             "content": prompt,
-            "custom_content": CustomContent().dict(exclude_none=True),
+            "custom_content": custom_content.dict(exclude_none=True),
         })
 
         return messages
